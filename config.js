@@ -1,0 +1,3 @@
+// Supabase connection details
+const SUPABASE_URL = 'https://leiajwhpbmkfmwztffvo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxlaWFqd2hwYm1rZm13enRmZnZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2ODc1ODQsImV4cCI6MjA5MjI2MzU4NH0.XDqabrkcZDgY3PzB4Qlnnyn39epTHR625d_2A5zYZjY';
