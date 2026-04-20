@@ -25,6 +25,11 @@ const modalTitle = document.getElementById('modal-title');
 const deletePropertyButton = document.getElementById('delete-property-button');
 const savePropertyButton = document.getElementById('save-property-button');
 
+// URL fetch elements
+const fetchUrlInput = document.getElementById('fetch-url-input');
+const fetchUrlButton = document.getElementById('fetch-url-button');
+const fetchStatus = document.getElementById('fetch-status');
+
 // Calendar elements
 const calMonthLabel = document.getElementById('cal-month-label');
 const calPrev = document.getElementById('cal-prev');
@@ -37,6 +42,7 @@ let currentEditingId = null;
 let allProperties = [];
 let calendarMonth = new Date();
 let selectedDate = null;
+let fetchedImageUrl = null;
 
 
 /* ============================================================
@@ -45,11 +51,8 @@ let selectedDate = null;
 
 async function checkSession() {
   const { data: { session } } = await sb.auth.getSession();
-  if (session) {
-    showAppScreen();
-  } else {
-    showLoginScreen();
-  }
+  if (session) showAppScreen();
+  else showLoginScreen();
 }
 
 function showLoginScreen() {
@@ -125,10 +128,7 @@ async function loadProperties() {
     });
   }
 
-  // If calendar is currently showing, re-render it with fresh data
-  if (!calendarSection.classList.contains('hidden')) {
-    renderCalendar();
-  }
+  if (!calendarSection.classList.contains('hidden')) renderCalendar();
 }
 
 function buildPropertyCard(property) {
@@ -155,14 +155,21 @@ function buildPropertyCard(property) {
   }
 
   const rentText = property.monthly_rent ? `£${property.monthly_rent}/mo` : '';
+  const bedroomsText = property.bedrooms ? `${property.bedrooms} bed` : '';
+
+  const imageHtml = property.main_image_url
+    ? `<img class="main-image" src="${escapeHtml(property.main_image_url)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+    : '';
 
   card.innerHTML = `
+    ${imageHtml}
     <div class="address">${escapeHtml(property.address)}</div>
     ${property.nickname ? `<div class="nickname">${escapeHtml(property.nickname)}</div>` : ''}
     <div class="meta">
       <span class="status-badge status-${property.status}">${statusLabels[property.status] || property.status}</span>
       ${viewingText ? `<span class="viewing-date">${viewingText}</span>` : ''}
       ${rentText ? `<span class="rent">${rentText}</span>` : ''}
+      ${bedroomsText ? `<span class="bedrooms">${bedroomsText}</span>` : ''}
     </div>
   `;
 
@@ -179,14 +186,11 @@ function escapeHtml(str) {
 
 
 /* ============================================================
-   TAB BAR — switch between Properties and Calendar
+   TAB BAR
    ============================================================ */
 
 document.querySelectorAll('.tab-button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const tab = btn.dataset.tab;
-    switchTab(tab);
-  });
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
 function switchTab(tab) {
@@ -217,7 +221,6 @@ calPrev.addEventListener('click', () => {
   calendarMonth.setMonth(calendarMonth.getMonth() - 1);
   renderCalendar();
 });
-
 calNext.addEventListener('click', () => {
   calendarMonth.setMonth(calendarMonth.getMonth() + 1);
   renderCalendar();
@@ -231,7 +234,6 @@ function renderCalendar() {
     month: 'long', year: 'numeric'
   });
 
-  // Build a map of YYYY-MM-DD → list of properties with viewings that day
   const viewingsByDay = {};
   allProperties.forEach(p => {
     if (!p.viewing_date) return;
@@ -241,16 +243,14 @@ function renderCalendar() {
     viewingsByDay[key].push(p);
   });
 
-  // First cell of the grid — Monday of the week containing the 1st
   const firstOfMonth = new Date(year, month, 1);
-  const dayOfWeek = (firstOfMonth.getDay() + 6) % 7; // shift Sun=0 → Mon=0
+  const dayOfWeek = (firstOfMonth.getDay() + 6) % 7;
   const gridStart = new Date(year, month, 1 - dayOfWeek);
 
   calendarGrid.innerHTML = '';
   const today = new Date();
   const todayKey = dateKey(today);
 
-  // 6 rows × 7 days = 42 cells (standard calendar grid)
   for (let i = 0; i < 42; i++) {
     const cellDate = new Date(gridStart);
     cellDate.setDate(gridStart.getDate() + i);
@@ -273,7 +273,6 @@ function renderCalendar() {
     calendarGrid.appendChild(cell);
   }
 
-  // If a date was already selected, re-render its details
   if (selectedDate) {
     const [y, m, d] = selectedDate.split('-').map(Number);
     renderDayDetails(viewingsByDay[selectedDate] || [], new Date(y, m - 1, d));
@@ -295,7 +294,6 @@ function renderDayDetails(viewings, date) {
     return;
   }
 
-  // Sort by time
   viewings.sort((a, b) => new Date(a.viewing_date) - new Date(b.viewing_date));
 
   calendarDayDetails.innerHTML = `<p class="day-details-heading">${heading}</p>`;
@@ -321,27 +319,201 @@ function dateKey(d) {
 
 
 /* ============================================================
+   URL FETCHING — Rightmove & Zoopla
+   ============================================================ */
+
+fetchUrlButton.addEventListener('click', fetchPropertyFromUrl);
+
+async function fetchPropertyFromUrl() {
+  const url = fetchUrlInput.value.trim();
+  if (!url) return;
+
+  const isRightmove = /rightmove\.co\.uk/i.test(url);
+  const isZoopla = /zoopla\.co\.uk/i.test(url);
+
+  if (!isRightmove && !isZoopla) {
+    showFetchStatus('Only Rightmove and Zoopla URLs are supported.', 'error');
+    return;
+  }
+
+  showFetchStatus('Fetching listing details…', 'loading');
+  fetchUrlButton.disabled = true;
+
+  try {
+    // Use a free CORS proxy to fetch the page
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    const response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error(`Fetch failed (${response.status})`);
+    const html = await response.text();
+
+    const details = isRightmove ? parseRightmove(html) : parseZoopla(html);
+
+    // Fill form fields from what we got
+    if (details.address) {
+      document.getElementById('property-address').value = details.address;
+    }
+    if (details.rent) {
+      document.getElementById('property-rent').value = details.rent;
+    }
+    if (details.bedrooms) {
+      document.getElementById('property-bedrooms').value = details.bedrooms;
+    }
+    // Store image for saving later
+    fetchedImageUrl = details.imageUrl || null;
+    // Store listing URL
+    document.getElementById('property-listing-url').value = url;
+
+    // Build a success message listing what we filled
+    const filled = [];
+    if (details.address) filled.push('address');
+    if (details.rent) filled.push('rent');
+    if (details.bedrooms) filled.push('bedrooms');
+    if (details.imageUrl) filled.push('image');
+
+    if (filled.length === 0) {
+      showFetchStatus('Couldn\'t extract details — please fill manually.', 'error');
+    } else {
+      showFetchStatus(`Filled: ${filled.join(', ')}. Check and adjust if needed.`, 'success');
+    }
+  } catch (err) {
+    console.error('Fetch error:', err);
+    showFetchStatus('Could not fetch listing. Try again or fill manually.', 'error');
+  } finally {
+    fetchUrlButton.disabled = false;
+  }
+}
+
+function showFetchStatus(message, type) {
+  fetchStatus.textContent = message;
+  fetchStatus.className = `fetch-status ${type}`;
+  fetchStatus.classList.remove('hidden');
+}
+
+function parseRightmove(html) {
+  const result = {};
+
+  // Rightmove embeds a big PAGE_MODEL JSON object in a <script> tag
+  const modelMatch = html.match(/window\.PAGE_MODEL\s*=\s*(\{[\s\S]*?\});?\s*<\/script>/);
+  if (modelMatch) {
+    try {
+      const model = JSON.parse(modelMatch[1]);
+      const prop = model.propertyData || {};
+
+      if (prop.address && prop.address.displayAddress) {
+        result.address = prop.address.displayAddress;
+      }
+      if (prop.prices && prop.prices.primaryPrice) {
+        const priceStr = prop.prices.primaryPrice.replace(/[^\d]/g, '');
+        if (priceStr) result.rent = parseInt(priceStr, 10);
+      }
+      if (typeof prop.bedrooms === 'number') {
+        result.bedrooms = prop.bedrooms;
+      }
+      if (prop.images && prop.images.length > 0 && prop.images[0].url) {
+        result.imageUrl = prop.images[0].url;
+      }
+    } catch (e) {
+      console.warn('Rightmove JSON parse failed:', e);
+    }
+  }
+
+  // Fallback: OpenGraph meta tags
+  if (!result.address) {
+    const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
+    if (ogTitle) result.address = ogTitle[1];
+  }
+  if (!result.imageUrl) {
+    const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+    if (ogImage) result.imageUrl = ogImage[1];
+  }
+
+  return result;
+}
+
+function parseZoopla(html) {
+  const result = {};
+
+  // Zoopla uses JSON-LD structured data
+  const jsonLdMatches = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  if (jsonLdMatches) {
+    for (const scriptTag of jsonLdMatches) {
+      try {
+        const jsonText = scriptTag.replace(/<script[^>]*>/i, '').replace(/<\/script>/i, '');
+        const data = JSON.parse(jsonText);
+        const items = Array.isArray(data) ? data : [data];
+        for (const item of items) {
+          if (item['@type'] === 'Residence' || item['@type'] === 'Product' || item['@type'] === 'SingleFamilyResidence' || item['@type'] === 'Apartment') {
+            if (item.address) {
+              if (typeof item.address === 'string') result.address = item.address;
+              else if (item.address.streetAddress) {
+                result.address = [item.address.streetAddress, item.address.addressLocality, item.address.postalCode].filter(Boolean).join(', ');
+              }
+            }
+            if (item.numberOfRooms) result.bedrooms = parseInt(item.numberOfRooms, 10);
+            if (item.image) {
+              result.imageUrl = Array.isArray(item.image) ? item.image[0] : item.image;
+            }
+          }
+          if (item.offers && item.offers.price) {
+            result.rent = parseInt(item.offers.price, 10);
+          }
+        }
+      } catch (e) {
+        // skip bad JSON-LD blocks
+      }
+    }
+  }
+
+  // Fallback to OpenGraph
+  if (!result.address) {
+    const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
+    if (ogTitle) result.address = ogTitle[1];
+  }
+  if (!result.imageUrl) {
+    const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+    if (ogImage) result.imageUrl = ogImage[1];
+  }
+
+  // Zoopla price fallback — look for £X,XXX pcm pattern
+  if (!result.rent) {
+    const priceMatch = html.match(/£([\d,]+)\s*(?:pcm|per month)/i);
+    if (priceMatch) {
+      result.rent = parseInt(priceMatch[1].replace(/,/g, ''), 10);
+    }
+  }
+
+  return result;
+}
+
+
+/* ============================================================
    MODAL
    ============================================================ */
 
 function openAddModal() {
   currentEditingId = null;
+  fetchedImageUrl = null;
   modalTitle.textContent = 'Add Property';
   savePropertyButton.textContent = 'Save';
   deletePropertyButton.classList.add('hidden');
   addPropertyForm.reset();
+  fetchStatus.classList.add('hidden');
   document.getElementById('property-status').value = 'saved';
   addPropertyModal.classList.remove('hidden');
 }
 
 function openEditModal(property) {
   currentEditingId = property.id;
+  fetchedImageUrl = property.main_image_url || null;
   modalTitle.textContent = 'Edit Property';
   savePropertyButton.textContent = 'Save changes';
   deletePropertyButton.classList.remove('hidden');
+  fetchStatus.classList.add('hidden');
+  fetchUrlInput.value = '';
 
   document.getElementById('property-address').value = property.address || '';
   document.getElementById('property-nickname').value = property.nickname || '';
+  document.getElementById('property-bedrooms').value = property.bedrooms || '';
   document.getElementById('property-status').value = property.status || 'saved';
   document.getElementById('property-listing-url').value = property.listing_url || '';
   document.getElementById('property-rent').value = property.monthly_rent || '';
@@ -362,7 +534,9 @@ function openEditModal(property) {
 function closeModal() {
   addPropertyModal.classList.add('hidden');
   addPropertyForm.reset();
+  fetchStatus.classList.add('hidden');
   currentEditingId = null;
+  fetchedImageUrl = null;
 }
 
 addPropertyButton.addEventListener('click', openAddModal);
@@ -389,6 +563,7 @@ addPropertyForm.addEventListener('submit', async (e) => {
 
   const viewingDateValue = document.getElementById('property-viewing-date').value;
   const rentValue = document.getElementById('property-rent').value;
+  const bedroomsValue = document.getElementById('property-bedrooms').value;
 
   const propertyData = {
     address: document.getElementById('property-address').value.trim(),
@@ -397,15 +572,14 @@ addPropertyForm.addEventListener('submit', async (e) => {
     viewing_date: viewingDateValue ? new Date(viewingDateValue).toISOString() : null,
     listing_url: document.getElementById('property-listing-url').value.trim() || null,
     monthly_rent: rentValue ? Number(rentValue) : null,
-    general_notes: document.getElementById('property-notes').value.trim() || null
+    bedrooms: bedroomsValue ? Number(bedroomsValue) : null,
+    general_notes: document.getElementById('property-notes').value.trim() || null,
+    main_image_url: fetchedImageUrl
   };
 
   let error;
   if (currentEditingId) {
-    const res = await sb
-      .from('properties')
-      .update(propertyData)
-      .eq('id', currentEditingId);
+    const res = await sb.from('properties').update(propertyData).eq('id', currentEditingId);
     error = res.error;
   } else {
     propertyData.created_by = user.id;
@@ -429,15 +603,10 @@ addPropertyForm.addEventListener('submit', async (e) => {
 
 deletePropertyButton.addEventListener('click', async () => {
   if (!currentEditingId) return;
-
   const confirmed = confirm('Delete this property? This cannot be undone.');
   if (!confirmed) return;
 
-  const { error } = await sb
-    .from('properties')
-    .delete()
-    .eq('id', currentEditingId);
-
+  const { error } = await sb.from('properties').delete().eq('id', currentEditingId);
   if (error) {
     alert('Could not delete: ' + error.message);
     return;
@@ -449,6 +618,6 @@ deletePropertyButton.addEventListener('click', async () => {
 
 
 /* ============================================================
-   START THE APP
+   START
    ============================================================ */
 checkSession();
