@@ -1,0 +1,357 @@
+/* ============ GLOBAL RESET ============ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #F7F5F9;
+  color: #2A1B3D;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 16px; /* prevents iOS zoom on focus */
+}
+
+/* ============ SCREENS ============ */
+.screen {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ============ LOGIN SCREEN ============ */
+#login-screen {
+  background: linear-gradient(135deg, #4A2B5C 0%, #2A1B3D 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-container {
+  background: white;
+  border-radius: 20px;
+  padding: 36px 28px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+}
+
+.login-container h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #4A2B5C;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.subtitle {
+  text-align: center;
+  color: #7A6B8A;
+  margin-bottom: 28px;
+  font-size: 15px;
+}
+
+#login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#login-form input {
+  padding: 14px 16px;
+  border: 1.5px solid #E5DFED;
+  border-radius: 12px;
+  font-size: 16px;
+  transition: border-color 0.15s;
+}
+
+#login-form input:focus {
+  outline: none;
+  border-color: #4A2B5C;
+}
+
+#login-button {
+  padding: 14px;
+  background: #4A2B5C;
+  color: white;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 8px;
+  transition: background 0.15s;
+}
+
+#login-button:active {
+  background: #2A1B3D;
+}
+
+.error-message {
+  margin-top: 16px;
+  padding: 12px;
+  background: #FEE;
+  color: #C33;
+  border-radius: 10px;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ============ APP SCREEN ============ */
+.top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: white;
+  padding: 20px 20px 16px;
+  padding-top: calc(20px + env(safe-area-inset-top));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #EEE8F2;
+}
+
+.top-bar h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #2A1B3D;
+}
+
+.text-button {
+  color: #4A2B5C;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 6px 10px;
+}
+
+.properties-list {
+  padding: 16px 16px 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.empty-state {
+  text-align: center;
+  color: #9A8BAA;
+  padding: 60px 20px;
+  font-size: 15px;
+}
+
+.property-card {
+  background: white;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(42, 27, 61, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.property-card .address {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2A1B3D;
+}
+
+.property-card .nickname {
+  font-size: 13px;
+  color: #9A8BAA;
+  font-style: italic;
+}
+
+.property-card .meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.status-saved { background: #F0EBF5; color: #4A2B5C; }
+.status-viewing_booked { background: #FFF4D9; color: #9A6E00; }
+.status-viewed { background: #D9EEFF; color: #1A5A8A; }
+.status-shortlisted { background: #D9F5E4; color: #1A7A3A; }
+.status-rejected { background: #FFE0E0; color: #8A1A1A; }
+
+.viewing-date, .rent {
+  font-size: 13px;
+  color: #5A4B6A;
+}
+
+/* ============ FLOATING ADD BUTTON ============ */
+.fab {
+  position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  right: 24px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #4A2B5C;
+  color: white;
+  font-size: 32px;
+  font-weight: 300;
+  box-shadow: 0 6px 20px rgba(74, 43, 92, 0.4);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s;
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
+
+/* ============ MODAL ============ */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.modal-content {
+  background: white;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  border-radius: 20px 20px 0 0;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  animation: slideUp 0.25s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.modal-content h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #2A1B3D;
+}
+
+.modal-content form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-content label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5A4B6A;
+  margin-top: 10px;
+}
+
+.modal-content input,
+.modal-content select,
+.modal-content textarea {
+  padding: 12px 14px;
+  border: 1.5px solid #E5DFED;
+  border-radius: 10px;
+  font-size: 16px;
+  background: white;
+  width: 100%;
+}
+
+.modal-content input:focus,
+.modal-content select:focus,
+.modal-content textarea:focus {
+  outline: none;
+  border-color: #4A2B5C;
+}
+
+.modal-content textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.primary-button, .secondary-button {
+  flex: 1;
+  padding: 14px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.primary-button {
+  background: #4A2B5C;
+  color: white;
+}
+
+.primary-button:active {
+  background: #2A1B3D;
+}
+
+.secondary-button {
+  background: #F0EBF5;
+  color: #4A2B5C;
+}
+
+.secondary-button:active {
+  background: #E5DFED;
+}
+
+/* ============ DESKTOP TWEAKS ============ */
+@media (min-width: 700px) {
+  .properties-list {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  .top-bar {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  .modal {
+    align-items: center;
+  }
+  
+  .modal-content {
+    border-radius: 20px;
+    max-height: 80vh;
+  }
+}
