@@ -47,7 +47,7 @@
     <!-- Add Property Modal -->
     <div id="add-property-modal" class="modal hidden">
       <div class="modal-content">
-        <h3>Add Property</h3>
+        <h3 id="modal-title">Add Property</h3>
         <form id="add-property-form">
           <label>Address *</label>
           <input type="text" id="property-address" placeholder="e.g. 14 Oak Street, Bristol BS1 4AB" required>
@@ -77,8 +77,9 @@
           <textarea id="property-notes" rows="3" placeholder="First impressions, concerns, things to ask..."></textarea>
           
           <div class="modal-buttons">
+            <button type="button" id="delete-property-button" class="danger-button hidden">Delete</button>
             <button type="button" id="cancel-add-button" class="secondary-button">Cancel</button>
-            <button type="submit" class="primary-button">Save</button>
+            <button type="submit" id="save-property-button" class="primary-button">Save</button>
           </div>
         </form>
       </div>

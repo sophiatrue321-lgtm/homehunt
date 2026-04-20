@@ -2,10 +2,9 @@
    HomeHunt — main app logic
    ============================================================ */
 
-// Initialise Supabase client using values from config.js
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Grab references to the HTML elements we'll interact with
+// Element references
 const loginScreen = document.getElementById('login-screen');
 const appScreen = document.getElementById('app-screen');
 const loginForm = document.getElementById('login-form');
@@ -20,10 +19,16 @@ const addPropertyButton = document.getElementById('add-property-button');
 const addPropertyModal = document.getElementById('add-property-modal');
 const addPropertyForm = document.getElementById('add-property-form');
 const cancelAddButton = document.getElementById('cancel-add-button');
+const modalTitle = document.getElementById('modal-title');
+const deletePropertyButton = document.getElementById('delete-property-button');
+const savePropertyButton = document.getElementById('save-property-button');
+
+// Track which property we're editing (null = adding new)
+let currentEditingId = null;
 
 
 /* ============================================================
-   AUTH — login, logout, session check
+   AUTH
    ============================================================ */
 
 async function checkSession() {
@@ -77,7 +82,7 @@ logoutButton.addEventListener('click', async () => {
 
 
 /* ============================================================
-   LOAD PROPERTIES — read from Supabase and render the list
+   LOAD PROPERTIES
    ============================================================ */
 
 async function loadProperties() {
@@ -111,6 +116,7 @@ async function loadProperties() {
 function buildPropertyCard(property) {
   const card = document.createElement('div');
   card.className = 'property-card';
+  card.dataset.id = property.id;
 
   const statusLabels = {
     saved: 'Saved',
@@ -142,6 +148,9 @@ function buildPropertyCard(property) {
     </div>
   `;
 
+  // Tap card to edit
+  card.addEventListener('click', () => openEditModal(property));
+
   return card;
 }
 
@@ -154,24 +163,63 @@ function escapeHtml(str) {
 
 
 /* ============================================================
-   ADD PROPERTY — modal + form submit
+   MODAL — add mode vs edit mode
    ============================================================ */
 
-addPropertyButton.addEventListener('click', () => {
+function openAddModal() {
+  currentEditingId = null;
+  modalTitle.textContent = 'Add Property';
+  savePropertyButton.textContent = 'Save';
+  deletePropertyButton.classList.add('hidden');
+  addPropertyForm.reset();
+  document.getElementById('property-status').value = 'saved';
   addPropertyModal.classList.remove('hidden');
-});
+}
 
-cancelAddButton.addEventListener('click', () => {
+function openEditModal(property) {
+  currentEditingId = property.id;
+  modalTitle.textContent = 'Edit Property';
+  savePropertyButton.textContent = 'Save changes';
+  deletePropertyButton.classList.remove('hidden');
+
+  // Pre-fill the form with existing values
+  document.getElementById('property-address').value = property.address || '';
+  document.getElementById('property-nickname').value = property.nickname || '';
+  document.getElementById('property-status').value = property.status || 'saved';
+  document.getElementById('property-listing-url').value = property.listing_url || '';
+  document.getElementById('property-rent').value = property.monthly_rent || '';
+  document.getElementById('property-notes').value = property.general_notes || '';
+
+  // datetime-local needs a specific format: YYYY-MM-DDTHH:MM
+  if (property.viewing_date) {
+    const d = new Date(property.viewing_date);
+    const pad = (n) => String(n).padStart(2, '0');
+    const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    document.getElementById('property-viewing-date').value = local;
+  } else {
+    document.getElementById('property-viewing-date').value = '';
+  }
+
+  addPropertyModal.classList.remove('hidden');
+}
+
+function closeModal() {
   addPropertyModal.classList.add('hidden');
   addPropertyForm.reset();
-});
+  currentEditingId = null;
+}
+
+addPropertyButton.addEventListener('click', openAddModal);
+cancelAddButton.addEventListener('click', closeModal);
 
 addPropertyModal.addEventListener('click', (e) => {
-  if (e.target === addPropertyModal) {
-    addPropertyModal.classList.add('hidden');
-    addPropertyForm.reset();
-  }
+  if (e.target === addPropertyModal) closeModal();
 });
+
+
+/* ============================================================
+   SAVE PROPERTY — handles both add and edit
+   ============================================================ */
 
 addPropertyForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -186,26 +234,62 @@ addPropertyForm.addEventListener('submit', async (e) => {
   const viewingDateValue = document.getElementById('property-viewing-date').value;
   const rentValue = document.getElementById('property-rent').value;
 
-  const newProperty = {
+  const propertyData = {
     address: document.getElementById('property-address').value.trim(),
     nickname: document.getElementById('property-nickname').value.trim() || null,
     status: document.getElementById('property-status').value,
     viewing_date: viewingDateValue ? new Date(viewingDateValue).toISOString() : null,
     listing_url: document.getElementById('property-listing-url').value.trim() || null,
     monthly_rent: rentValue ? Number(rentValue) : null,
-    general_notes: document.getElementById('property-notes').value.trim() || null,
-    created_by: user.id
+    general_notes: document.getElementById('property-notes').value.trim() || null
   };
 
-  const { error } = await sb.from('properties').insert(newProperty);
+  let error;
+  if (currentEditingId) {
+    // EDIT mode — update existing row
+    const res = await sb
+      .from('properties')
+      .update(propertyData)
+      .eq('id', currentEditingId);
+    error = res.error;
+  } else {
+    // ADD mode — insert new row
+    propertyData.created_by = user.id;
+    const res = await sb.from('properties').insert(propertyData);
+    error = res.error;
+  }
 
   if (error) {
     alert('Could not save property: ' + error.message);
     return;
   }
 
-  addPropertyForm.reset();
-  addPropertyModal.classList.add('hidden');
+  closeModal();
+  loadProperties();
+});
+
+
+/* ============================================================
+   DELETE PROPERTY
+   ============================================================ */
+
+deletePropertyButton.addEventListener('click', async () => {
+  if (!currentEditingId) return;
+
+  const confirmed = confirm('Delete this property? This cannot be undone.');
+  if (!confirmed) return;
+
+  const { error } = await sb
+    .from('properties')
+    .delete()
+    .eq('id', currentEditingId);
+
+  if (error) {
+    alert('Could not delete: ' + error.message);
+    return;
+  }
+
+  closeModal();
   loadProperties();
 });
 
