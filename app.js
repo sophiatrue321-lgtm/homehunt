@@ -3,7 +3,7 @@
    ============================================================ */
 
 // Initialise Supabase client using values from config.js
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Grab references to the HTML elements we'll interact with
 const loginScreen = document.getElementById('login-screen');
@@ -28,7 +28,7 @@ const cancelAddButton = document.getElementById('cancel-add-button');
 
 // When the page first loads, check if we're already logged in
 async function checkSession() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();
   if (session) {
     showAppScreen();
   } else {
