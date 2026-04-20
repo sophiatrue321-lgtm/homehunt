@@ -13,17 +13,17 @@
      <!-- OneSignal Web SDK -->
      <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
      <script>
-       window.OneSignalDeferred = window.OneSignalDeferred || [];
-       OneSignalDeferred.push(async function(OneSignal) {
-         await OneSignal.init({
-           appId: "879ec9f0-991d-43c8-9227-26d2033ca4eb",
-           allowLocalhostAsSecureOrigin: true,
-           notifyButton: { enable: false },
-           serviceWorkerParam: { scope: "/homehunt/" },
-           serviceWorkerPath: "OneSignalSDKWorker.js"
-         });
-       });
-     </script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({
+      appId: "879ec9f0-991d-43c8-9227-26d2033ca4eb",
+      allowLocalhostAsSecureOrigin: true,
+      notifyButton: { enable: false },
+      serviceWorkerParam: { scope: "/homehunt/" },
+      serviceWorkerPath: "/homehunt/OneSignalSDKWorker.js"
+    });
+  });
+</script>
 </head>
 <body>
 
