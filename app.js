@@ -26,7 +26,6 @@ const cancelAddButton = document.getElementById('cancel-add-button');
    AUTH — login, logout, session check
    ============================================================ */
 
-// When the page first loads, check if we're already logged in
 async function checkSession() {
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
@@ -47,14 +46,13 @@ function showAppScreen() {
   loadProperties();
 }
 
-// Handle login form submission
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   loginError.classList.add('hidden');
   loginButton.textContent = 'Logging in…';
   loginButton.disabled = true;
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { error } = await sb.auth.signInWithPassword({
     email: loginEmail.value.trim(),
     password: loginPassword.value
   });
@@ -72,9 +70,8 @@ loginForm.addEventListener('submit', async (e) => {
   showAppScreen();
 });
 
-// Handle logout
 logoutButton.addEventListener('click', async () => {
-  await supabase.auth.signOut();
+  await sb.auth.signOut();
   showLoginScreen();
 });
 
@@ -86,7 +83,7 @@ logoutButton.addEventListener('click', async () => {
 async function loadProperties() {
   propertiesList.innerHTML = '<p class="empty-state">Loading…</p>';
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('properties')
     .select('*')
     .order('created_at', { ascending: false });
@@ -111,7 +108,6 @@ async function loadProperties() {
   });
 }
 
-// Build a single property card HTML element
 function buildPropertyCard(property) {
   const card = document.createElement('div');
   card.className = 'property-card';
@@ -149,7 +145,6 @@ function buildPropertyCard(property) {
   return card;
 }
 
-// Prevent any HTML injection in user-entered text
 function escapeHtml(str) {
   if (!str) return '';
   const div = document.createElement('div');
@@ -171,7 +166,6 @@ cancelAddButton.addEventListener('click', () => {
   addPropertyForm.reset();
 });
 
-// Close modal if user taps outside the white content area
 addPropertyModal.addEventListener('click', (e) => {
   if (e.target === addPropertyModal) {
     addPropertyModal.classList.add('hidden');
@@ -182,7 +176,7 @@ addPropertyModal.addEventListener('click', (e) => {
 addPropertyForm.addEventListener('submit', async (e) => {
   e.preventDefault();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await sb.auth.getUser();
   if (!user) {
     alert('You appear to be logged out. Please log in again.');
     showLoginScreen();
@@ -203,7 +197,7 @@ addPropertyForm.addEventListener('submit', async (e) => {
     created_by: user.id
   };
 
-  const { error } = await supabase.from('properties').insert(newProperty);
+  const { error } = await sb.from('properties').insert(newProperty);
 
   if (error) {
     alert('Could not save property: ' + error.message);
