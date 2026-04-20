@@ -340,11 +340,39 @@ async function fetchPropertyFromUrl() {
   fetchUrlButton.disabled = true;
 
   try {
-    // Use a free CORS proxy to fetch the page
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    const response = await fetch(proxyUrl);
-    if (!response.ok) throw new Error(`Fetch failed (${response.status})`);
-    const html = await response.text();
+       // Try multiple CORS proxies — free ones go down regularly
+       const proxies = [
+         (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+         (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+         (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+         (u) => `https://proxy.cors.sh/${u}`
+       ];
+
+       let html = null;
+       let lastError = null;
+
+       for (const buildProxyUrl of proxies) {
+         try {
+           const proxyUrl = buildProxyUrl(url);
+           const response = await fetch(proxyUrl, {
+             headers: { 'x-requested-with': 'XMLHttpRequest' }
+           });
+           if (!response.ok) {
+             lastError = `HTTP ${response.status}`;
+             continue;
+           }
+           html = await response.text();
+           if (html && html.length > 1000) break; // got something real
+           html = null;
+         } catch (e) {
+           lastError = e.message;
+           continue;
+         }
+       }
+
+       if (!html) {
+         throw new Error(`All proxies failed (last: ${lastError})`);
+       }
 
     const details = isRightmove ? parseRightmove(html) : parseZoopla(html);
 
