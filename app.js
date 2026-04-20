@@ -68,29 +68,39 @@ function showAppScreen() {
    }
 
    async function setupPushNotifications() {
-     // Wait for OneSignal to be ready
-     if (!window.OneSignalDeferred) return;
-     
-     window.OneSignalDeferred.push(async function(OneSignal) {
-       try {
-         // Get the current logged-in user
-         const { data: { user } } = await sb.auth.getUser();
-         if (!user) return;
+  if (!window.OneSignalDeferred) return;
 
-         // Tell OneSignal who this user is (so we can target them later)
-         await OneSignal.login(user.id);
+  window.OneSignalDeferred.push(async function(OneSignal) {
+    try {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
 
-         // Check if they've already decided on notifications
-         const permission = OneSignal.Notifications.permission;
-         if (permission === false) {
-           // Hasn't decided yet — show the permission prompt
-           await OneSignal.Notifications.requestPermission();
-         }
-       } catch (err) {
-         console.warn('OneSignal setup failed:', err);
-       }
-     });
-   }
+      // Identify this user so we can target them later
+      await OneSignal.login(user.id);
+
+      // Check current permission state
+      const permission = OneSignal.Notifications.permission;
+
+      if (!permission) {
+        // Show the browser permission prompt
+        await OneSignal.Notifications.requestPermission();
+      }
+
+      // After permission granted, explicitly opt in to push subscription
+      // (this is the step OneSignal's default snippet misses — SDK v16 splits these)
+      if (OneSignal.Notifications.permission) {
+        await OneSignal.User.PushSubscription.optIn();
+      }
+
+      // Log the subscription state for debugging
+      console.log('OneSignal permission:', OneSignal.Notifications.permission);
+      console.log('OneSignal push subscribed:', OneSignal.User.PushSubscription.optedIn);
+      console.log('OneSignal push ID:', OneSignal.User.PushSubscription.id);
+    } catch (err) {
+      console.warn('OneSignal setup failed:', err);
+    }
+  });
+}
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
