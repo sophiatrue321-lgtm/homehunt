@@ -374,10 +374,6 @@ async function fetchPropertyFromUrl() {
          throw new Error(`All proxies failed (last: ${lastError})`);
        }
 
-       console.log('Fetched HTML length:', html.length, 'First 2000 chars:', html.substring(0, 2000));
-       console.log('Looking for PAGE_MODEL:', html.indexOf('PAGE_MODEL'));
-       console.log('Looking for propertyData:', html.indexOf('propertyData'));
-       
     const details = isRightmove ? parseRightmove(html) : parseZoopla(html);
 
     // Fill form fields from what we got
@@ -424,42 +420,107 @@ function showFetchStatus(message, type) {
 function parseRightmove(html) {
   const result = {};
 
-  // Rightmove embeds a big PAGE_MODEL JSON object in a <script> tag
-  const modelMatch = html.match(/window\.PAGE_MODEL\s*=\s*(\{[\s\S]*?\});?\s*<\/script>/);
-  if (modelMatch) {
-    try {
-      const model = JSON.parse(modelMatch[1]);
-      const prop = model.propertyData || {};
+  // Find the PAGE_MODEL JSON by locating "window.PAGE_MODEL = " then counting braces
+  const marker = 'window.PAGE_MODEL = ';
+  const start = html.indexOf(marker);
+  if (start !== -1) {
+    const jsonStart = start + marker.length;
+    const jsonStr = extractJsonObject(html, jsonStart);
+    if (jsonStr) {
+      try {
+        const model = JSON.parse(jsonStr);
+        const prop = model.propertyData || {};
 
-      if (prop.address && prop.address.displayAddress) {
-        result.address = prop.address.displayAddress;
+        if (prop.address && prop.address.displayAddress) {
+          result.address = prop.address.displayAddress;
+        }
+        if (prop.prices && prop.prices.primaryPrice) {
+          const priceStr = String(prop.prices.primaryPrice).replace(/[^\d]/g, '');
+          if (priceStr) result.rent = parseInt(priceStr, 10);
+        }
+        if (typeof prop.bedrooms === 'number') {
+          result.bedrooms = prop.bedrooms;
+        }
+        if (prop.images && prop.images.length > 0) {
+          const firstImg = prop.images[0];
+          result.imageUrl = firstImg.url || firstImg.srcUrl || null;
+        }
+      } catch (e) {
+        console.warn('Rightmove JSON parse failed:', e.message);
       }
-      if (prop.prices && prop.prices.primaryPrice) {
-        const priceStr = prop.prices.primaryPrice.replace(/[^\d]/g, '');
-        if (priceStr) result.rent = parseInt(priceStr, 10);
-      }
-      if (typeof prop.bedrooms === 'number') {
-        result.bedrooms = prop.bedrooms;
-      }
-      if (prop.images && prop.images.length > 0 && prop.images[0].url) {
-        result.imageUrl = prop.images[0].url;
-      }
-    } catch (e) {
-      console.warn('Rightmove JSON parse failed:', e);
     }
   }
 
-  // Fallback: OpenGraph meta tags
+  // Fallback: extract title minus "Rightmove" branding
   if (!result.address) {
-    const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
-    if (ogTitle) result.address = ogTitle[1];
+    const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+    if (titleMatch) {
+      // Strip trailing "- Rightmove" or "on Rightmove"
+      result.address = titleMatch[1].replace(/\s*[-|]\s*Rightmove\s*$/i, '').trim();
+    }
   }
+
+  // Fallback: preloaded image URL (the big hero image)
   if (!result.imageUrl) {
-    const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
-    if (ogImage) result.imageUrl = ogImage[1];
+    const heroImg = html.match(/rel="preload"[^>]+as="image"[^>]+href="([^"]+)"/i);
+    if (heroImg) result.imageUrl = heroImg[1];
+  }
+
+  // Fallback: price from meta description or visible text
+  if (!result.rent) {
+    const priceMatch = html.match(/£([\d,]+)\s*(?:pcm|per month|\/month)/i);
+    if (priceMatch) {
+      result.rent = parseInt(priceMatch[1].replace(/,/g, ''), 10);
+    }
+  }
+
+  // Fallback: bedrooms from title
+  if (!result.bedrooms) {
+    const bedMatch = html.match(/(\d+)\s*bed(?:room)?/i);
+    if (bedMatch) result.bedrooms = parseInt(bedMatch[1], 10);
   }
 
   return result;
+}
+
+// Helper: given a string and a starting index (pointing at '{'),
+// return the full JSON object string by counting braces
+function extractJsonObject(str, startIdx) {
+  // Advance to first '{'
+  while (startIdx < str.length && str[startIdx] !== '{') startIdx++;
+  if (startIdx >= str.length) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = startIdx; i < str.length; i++) {
+    const ch = str[i];
+
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escapeNext = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        return str.substring(startIdx, i + 1);
+      }
+    }
+  }
+
+  return null;
 }
 
 function parseZoopla(html) {
