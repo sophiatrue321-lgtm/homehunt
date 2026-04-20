@@ -669,4 +669,10 @@ input, select, textarea {
   font-size: 13px;
   color: #5A4B6A;
 }
+
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 }

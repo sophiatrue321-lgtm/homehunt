@@ -13,6 +13,7 @@ const loginPassword = document.getElementById('login-password');
 const loginButton = document.getElementById('login-button');
 const loginError = document.getElementById('login-error');
 const logoutButton = document.getElementById('logout-button');
+const notificationsButton = document.getElementById('notifications-button');
 const topBarTitle = document.getElementById('top-bar-title');
 
 const propertiesList = document.getElementById('properties-list');
@@ -75,32 +76,62 @@ function showAppScreen() {
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
 
-      // Identify this user so we can target them later
       await OneSignal.login(user.id);
-
-      // Check current permission state
-      const permission = OneSignal.Notifications.permission;
-
-      if (!permission) {
-        // Show the browser permission prompt
-        await OneSignal.Notifications.requestPermission();
-      }
-
-      // After permission granted, explicitly opt in to push subscription
-      // (this is the step OneSignal's default snippet misses — SDK v16 splits these)
-      if (OneSignal.Notifications.permission) {
-        await OneSignal.User.PushSubscription.optIn();
-      }
-
-      // Log the subscription state for debugging
-      console.log('OneSignal permission:', OneSignal.Notifications.permission);
-      console.log('OneSignal push subscribed:', OneSignal.User.PushSubscription.optedIn);
-      console.log('OneSignal push ID:', OneSignal.User.PushSubscription.id);
+      updateNotificationsButton();
     } catch (err) {
       console.warn('OneSignal setup failed:', err);
     }
   });
 }
+
+async function updateNotificationsButton() {
+  if (!window.OneSignalDeferred) return;
+
+  window.OneSignalDeferred.push(async function(OneSignal) {
+    const permission = OneSignal.Notifications.permission;
+    const optedIn = OneSignal.User.PushSubscription.optedIn;
+
+    if (permission && optedIn) {
+      notificationsButton.textContent = '🔔 On';
+      notificationsButton.title = 'Notifications enabled — tap to disable';
+    } else {
+      notificationsButton.textContent = '🔔 Off';
+      notificationsButton.title = 'Tap to enable notifications';
+    }
+  });
+}
+
+// Handler for the button click
+notificationsButton.addEventListener('click', async () => {
+  if (!window.OneSignalDeferred) return;
+
+  window.OneSignalDeferred.push(async function(OneSignal) {
+    try {
+      const permission = OneSignal.Notifications.permission;
+
+      if (!permission) {
+        // Ask for browser permission
+        await OneSignal.Notifications.requestPermission();
+      }
+
+      const optedIn = OneSignal.User.PushSubscription.optedIn;
+
+      if (optedIn) {
+        // Currently on — turn off
+        await OneSignal.User.PushSubscription.optOut();
+      } else {
+        // Currently off — turn on
+        await OneSignal.User.PushSubscription.optIn();
+      }
+
+      // Small delay for OneSignal to update state before we re-check
+      setTimeout(updateNotificationsButton, 500);
+    } catch (err) {
+      console.error('Notifications toggle failed:', err);
+      alert('Could not change notification setting: ' + err.message);
+    }
+  });
+});
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
