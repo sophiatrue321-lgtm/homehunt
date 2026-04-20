@@ -40,6 +40,33 @@
     <main id="properties-list" class="properties-list">
       <p class="empty-state">Loading…</p>
     </main>
+    
+<!-- Bottom tab bar -->
+    <nav class="tab-bar">
+      <button class="tab-button active" data-tab="properties">
+        <span class="tab-icon">🏠</span>
+        <span class="tab-label">Properties</span>
+      </button>
+      <button class="tab-button" data-tab="calendar">
+        <span class="tab-icon">📅</span>
+        <span class="tab-label">Calendar</span>
+      </button>
+    </nav>
+
+    <!-- ============ CALENDAR SCREEN ============ -->
+    <section id="calendar-section" class="hidden">
+      <div class="calendar-header">
+        <button id="cal-prev" class="cal-nav-button">‹</button>
+        <h3 id="cal-month-label">Month Year</h3>
+        <button id="cal-next" class="cal-nav-button">›</button>
+      </div>
+      <div class="calendar-weekdays">
+        <span>Mon</span><span>Tue</span><span>Wed</span>
+        <span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+      </div>
+      <div id="calendar-grid" class="calendar-grid"></div>
+      <div id="calendar-day-details" class="calendar-day-details"></div>
+    </section>
 
     <!-- Floating Add button -->
     <button id="add-property-button" class="fab">+</button>

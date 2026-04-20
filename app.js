@@ -13,8 +13,10 @@ const loginPassword = document.getElementById('login-password');
 const loginButton = document.getElementById('login-button');
 const loginError = document.getElementById('login-error');
 const logoutButton = document.getElementById('logout-button');
+const topBarTitle = document.getElementById('top-bar-title');
 
 const propertiesList = document.getElementById('properties-list');
+const calendarSection = document.getElementById('calendar-section');
 const addPropertyButton = document.getElementById('add-property-button');
 const addPropertyModal = document.getElementById('add-property-modal');
 const addPropertyForm = document.getElementById('add-property-form');
@@ -23,8 +25,18 @@ const modalTitle = document.getElementById('modal-title');
 const deletePropertyButton = document.getElementById('delete-property-button');
 const savePropertyButton = document.getElementById('save-property-button');
 
-// Track which property we're editing (null = adding new)
+// Calendar elements
+const calMonthLabel = document.getElementById('cal-month-label');
+const calPrev = document.getElementById('cal-prev');
+const calNext = document.getElementById('cal-next');
+const calendarGrid = document.getElementById('calendar-grid');
+const calendarDayDetails = document.getElementById('calendar-day-details');
+
+// State
 let currentEditingId = null;
+let allProperties = [];
+let calendarMonth = new Date();
+let selectedDate = null;
 
 
 /* ============================================================
@@ -98,19 +110,25 @@ async function loadProperties() {
     return;
   }
 
-  if (!data || data.length === 0) {
+  allProperties = data || [];
+
+  if (allProperties.length === 0) {
     propertiesList.innerHTML = `
       <p class="empty-state">
         No properties yet.<br>
         Tap the + button to add your first one.
       </p>`;
-    return;
+  } else {
+    propertiesList.innerHTML = '';
+    allProperties.forEach(property => {
+      propertiesList.appendChild(buildPropertyCard(property));
+    });
   }
 
-  propertiesList.innerHTML = '';
-  data.forEach(property => {
-    propertiesList.appendChild(buildPropertyCard(property));
-  });
+  // If calendar is currently showing, re-render it with fresh data
+  if (!calendarSection.classList.contains('hidden')) {
+    renderCalendar();
+  }
 }
 
 function buildPropertyCard(property) {
@@ -148,9 +166,7 @@ function buildPropertyCard(property) {
     </div>
   `;
 
-  // Tap card to edit
   card.addEventListener('click', () => openEditModal(property));
-
   return card;
 }
 
@@ -163,7 +179,149 @@ function escapeHtml(str) {
 
 
 /* ============================================================
-   MODAL — add mode vs edit mode
+   TAB BAR — switch between Properties and Calendar
+   ============================================================ */
+
+document.querySelectorAll('.tab-button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    switchTab(tab);
+  });
+});
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-button').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+
+  if (tab === 'properties') {
+    propertiesList.classList.remove('hidden');
+    calendarSection.classList.add('hidden');
+    addPropertyButton.classList.remove('hidden');
+    topBarTitle.textContent = 'Properties';
+  } else if (tab === 'calendar') {
+    propertiesList.classList.add('hidden');
+    calendarSection.classList.remove('hidden');
+    addPropertyButton.classList.add('hidden');
+    topBarTitle.textContent = 'Calendar';
+    renderCalendar();
+  }
+}
+
+
+/* ============================================================
+   CALENDAR
+   ============================================================ */
+
+calPrev.addEventListener('click', () => {
+  calendarMonth.setMonth(calendarMonth.getMonth() - 1);
+  renderCalendar();
+});
+
+calNext.addEventListener('click', () => {
+  calendarMonth.setMonth(calendarMonth.getMonth() + 1);
+  renderCalendar();
+});
+
+function renderCalendar() {
+  const year = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+
+  calMonthLabel.textContent = calendarMonth.toLocaleDateString('en-GB', {
+    month: 'long', year: 'numeric'
+  });
+
+  // Build a map of YYYY-MM-DD → list of properties with viewings that day
+  const viewingsByDay = {};
+  allProperties.forEach(p => {
+    if (!p.viewing_date) return;
+    const d = new Date(p.viewing_date);
+    const key = dateKey(d);
+    if (!viewingsByDay[key]) viewingsByDay[key] = [];
+    viewingsByDay[key].push(p);
+  });
+
+  // First cell of the grid — Monday of the week containing the 1st
+  const firstOfMonth = new Date(year, month, 1);
+  const dayOfWeek = (firstOfMonth.getDay() + 6) % 7; // shift Sun=0 → Mon=0
+  const gridStart = new Date(year, month, 1 - dayOfWeek);
+
+  calendarGrid.innerHTML = '';
+  const today = new Date();
+  const todayKey = dateKey(today);
+
+  // 6 rows × 7 days = 42 cells (standard calendar grid)
+  for (let i = 0; i < 42; i++) {
+    const cellDate = new Date(gridStart);
+    cellDate.setDate(gridStart.getDate() + i);
+    const key = dateKey(cellDate);
+
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell';
+    if (cellDate.getMonth() !== month) cell.classList.add('other-month');
+    if (key === todayKey) cell.classList.add('today');
+    if (viewingsByDay[key]) cell.classList.add('has-viewing');
+    if (selectedDate && key === selectedDate) cell.classList.add('selected');
+
+    cell.textContent = cellDate.getDate();
+    cell.addEventListener('click', () => {
+      selectedDate = key;
+      renderCalendar();
+      renderDayDetails(viewingsByDay[key] || [], cellDate);
+    });
+
+    calendarGrid.appendChild(cell);
+  }
+
+  // If a date was already selected, re-render its details
+  if (selectedDate) {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    renderDayDetails(viewingsByDay[selectedDate] || [], new Date(y, m - 1, d));
+  } else {
+    calendarDayDetails.innerHTML = '<p class="no-viewings">Tap a date to see viewings</p>';
+  }
+}
+
+function renderDayDetails(viewings, date) {
+  const heading = date.toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long'
+  });
+
+  if (viewings.length === 0) {
+    calendarDayDetails.innerHTML = `
+      <p class="day-details-heading">${heading}</p>
+      <p class="no-viewings">No viewings on this day</p>
+    `;
+    return;
+  }
+
+  // Sort by time
+  viewings.sort((a, b) => new Date(a.viewing_date) - new Date(b.viewing_date));
+
+  calendarDayDetails.innerHTML = `<p class="day-details-heading">${heading}</p>`;
+  viewings.forEach(p => {
+    const time = new Date(p.viewing_date).toLocaleTimeString('en-GB', {
+      hour: '2-digit', minute: '2-digit'
+    });
+    const item = document.createElement('div');
+    item.className = 'viewing-item';
+    item.innerHTML = `
+      <span class="time">${time}</span>
+      <span class="address">${escapeHtml(p.address)}</span>
+    `;
+    item.addEventListener('click', () => openEditModal(p));
+    calendarDayDetails.appendChild(item);
+  });
+}
+
+function dateKey(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+
+/* ============================================================
+   MODAL
    ============================================================ */
 
 function openAddModal() {
@@ -182,7 +340,6 @@ function openEditModal(property) {
   savePropertyButton.textContent = 'Save changes';
   deletePropertyButton.classList.remove('hidden');
 
-  // Pre-fill the form with existing values
   document.getElementById('property-address').value = property.address || '';
   document.getElementById('property-nickname').value = property.nickname || '';
   document.getElementById('property-status').value = property.status || 'saved';
@@ -190,7 +347,6 @@ function openEditModal(property) {
   document.getElementById('property-rent').value = property.monthly_rent || '';
   document.getElementById('property-notes').value = property.general_notes || '';
 
-  // datetime-local needs a specific format: YYYY-MM-DDTHH:MM
   if (property.viewing_date) {
     const d = new Date(property.viewing_date);
     const pad = (n) => String(n).padStart(2, '0');
@@ -218,7 +374,7 @@ addPropertyModal.addEventListener('click', (e) => {
 
 
 /* ============================================================
-   SAVE PROPERTY — handles both add and edit
+   SAVE PROPERTY
    ============================================================ */
 
 addPropertyForm.addEventListener('submit', async (e) => {
@@ -246,14 +402,12 @@ addPropertyForm.addEventListener('submit', async (e) => {
 
   let error;
   if (currentEditingId) {
-    // EDIT mode — update existing row
     const res = await sb
       .from('properties')
       .update(propertyData)
       .eq('id', currentEditingId);
     error = res.error;
   } else {
-    // ADD mode — insert new row
     propertyData.created_by = user.id;
     const res = await sb.from('properties').insert(propertyData);
     error = res.error;
