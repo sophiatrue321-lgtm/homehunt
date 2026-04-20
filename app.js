@@ -61,10 +61,36 @@ function showLoginScreen() {
 }
 
 function showAppScreen() {
-  loginScreen.classList.add('hidden');
-  appScreen.classList.remove('hidden');
-  loadProperties();
-}
+     loginScreen.classList.add('hidden');
+     appScreen.classList.remove('hidden');
+     loadProperties();
+     setupPushNotifications();
+   }
+
+   async function setupPushNotifications() {
+     // Wait for OneSignal to be ready
+     if (!window.OneSignalDeferred) return;
+     
+     window.OneSignalDeferred.push(async function(OneSignal) {
+       try {
+         // Get the current logged-in user
+         const { data: { user } } = await sb.auth.getUser();
+         if (!user) return;
+
+         // Tell OneSignal who this user is (so we can target them later)
+         await OneSignal.login(user.id);
+
+         // Check if they've already decided on notifications
+         const permission = OneSignal.Notifications.permission;
+         if (permission === false) {
+           // Hasn't decided yet — show the permission prompt
+           await OneSignal.Notifications.requestPermission();
+         }
+       } catch (err) {
+         console.warn('OneSignal setup failed:', err);
+       }
+     });
+   }
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
