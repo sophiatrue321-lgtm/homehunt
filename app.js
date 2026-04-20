@@ -374,6 +374,10 @@ async function fetchPropertyFromUrl() {
          throw new Error(`All proxies failed (last: ${lastError})`);
        }
 
+       console.log('Fetched HTML length:', html.length, 'First 2000 chars:', html.substring(0, 2000));
+       console.log('Looking for PAGE_MODEL:', html.indexOf('PAGE_MODEL'));
+       console.log('Looking for propertyData:', html.indexOf('propertyData'));
+       
     const details = isRightmove ? parseRightmove(html) : parseZoopla(html);
 
     // Fill form fields from what we got
